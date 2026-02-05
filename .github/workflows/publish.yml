@@ -1,18 +1,15 @@
-name: CI
+name: Publish to PyPI
 
 on:
   push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+    tags: ["v*"]
 
 jobs:
-  lint-and-test:
+  publish:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.13"]
-
+    environment: pypi
+    permissions:
+      id-token: write  # OIDC trusted publishing
     steps:
       - uses: actions/checkout@v4
         with:
@@ -21,8 +18,8 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v4
 
-      - name: Set up Python ${{ matrix.python-version }}
-        run: uv python install ${{ matrix.python-version }}
+      - name: Set up Python
+        run: uv python install 3.13
 
       - name: Install dependencies
         run: uv sync --dev
@@ -32,3 +29,9 @@ jobs:
 
       - name: Test
         run: uv run pytest tests/ -v --tb=short
+
+      - name: Build
+        run: uv build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
