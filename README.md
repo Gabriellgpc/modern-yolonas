@@ -12,27 +12,82 @@ pip install modern-yolonas
 
 ## Quick Start
 
-### Python API
+### Detect objects in an image
 
 ```python
-from modern_yolonas import yolo_nas_s
-
-# Load pretrained COCO model
-model = yolo_nas_s(pretrained=True)
-
-# High-level detection
 from modern_yolonas import Detector
 
 det = Detector("yolo_nas_s", device="cuda")
 result = det("image.jpg")
+
+# Print detections
+from modern_yolonas.inference.visualize import COCO_NAMES
+
+for box, score, cls_id in zip(result.boxes, result.scores, result.class_ids):
+    name = COCO_NAMES[int(cls_id)]
+    x1, y1, x2, y2 = box
+    print(f"{name}: {score:.2f} [{x1:.0f}, {y1:.0f}, {x2:.0f}, {y2:.0f}]")
+
+# Save annotated image
 result.save("output.jpg")
 ```
 
-### CLI
+### Detect objects in a video
+
+```python
+from modern_yolonas import Detector
+
+det = Detector("yolo_nas_s", device="cuda")
+
+# Option 1: Write annotated video directly
+stats = det.detect_video_to_file("input.mp4", "output.mp4")
+print(f"{stats['total_detections']} detections across {stats['total_frames']} frames")
+
+# Option 2: Iterate frames for custom logic
+for frame_idx, result in det.detect_video("input.mp4"):
+    print(f"Frame {frame_idx}: {len(result.boxes)} objects")
+    # result.boxes, result.scores, result.class_ids are numpy arrays
+    # result.visualize() returns the annotated frame as BGR numpy array
+```
+
+### Live webcam detection
+
+```python
+import cv2
+from modern_yolonas import Detector
+
+det = Detector("yolo_nas_s", device="cuda")
+
+for frame_idx, result in det.detect_video(source=0):  # 0 = default camera
+    cv2.imshow("YOLO-NAS", result.visualize())
+    if cv2.waitKey(1) & 0xFF == ord("q"):
+        break
+cv2.destroyAllWindows()
+```
+
+### Low-level model API
+
+```python
+import torch
+from modern_yolonas import yolo_nas_s
+
+model = yolo_nas_s(pretrained=True).eval().cuda()
+x = torch.randn(1, 3, 640, 640).cuda()
+pred_bboxes, pred_scores = model(x)
+# pred_bboxes: [1, 8400, 4] — x1y1x2y2 pixel coordinates
+# pred_scores: [1, 8400, 80] — class probabilities
+```
+
+## CLI
 
 ```bash
-# Detection
+# Detect in images
 yolonas detect --model yolo_nas_s --source image.jpg --conf 0.25
+yolonas detect --model yolo_nas_l --source images/ --output results/
+
+# Detect in video
+yolonas detect --model yolo_nas_s --source video.mp4 --output results/
+yolonas detect --model yolo_nas_m --source video.mp4 --skip-frames 2 --conf 0.3
 
 # Training
 yolonas train --model yolo_nas_s --data /path/to/dataset --format yolo --epochs 100
@@ -42,7 +97,16 @@ yolonas eval --model yolo_nas_s --data /path/to/coco --split val2017
 
 # Export
 yolonas export --model yolo_nas_s --format onnx --output model.onnx
+yolonas export --model yolo_nas_s --format openvino --output model.xml
 ```
+
+## Examples
+
+See the [`examples/`](examples/) directory:
+
+- [`detect_image.py`](examples/detect_image.py) — run detection on a single image
+- [`detect_video.py`](examples/detect_video.py) — run detection on a video file
+- [`detect_webcam.py`](examples/detect_webcam.py) — live webcam detection
 
 ## Variants
 
