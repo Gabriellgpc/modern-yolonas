@@ -1,9 +1,10 @@
-"""High-level detection API."""
+"""High-level detection API for images and video."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Generator
 
 import numpy as np
 import torch
@@ -12,10 +13,12 @@ from modern_yolonas.inference.preprocess import preprocess
 from modern_yolonas.inference.postprocess import postprocess, rescale_boxes
 from modern_yolonas.inference.visualize import draw_detections
 
+VIDEO_EXTENSIONS = {".mp4", ".avi", ".mov", ".mkv", ".webm", ".flv", ".wmv", ".m4v"}
+
 
 @dataclass
 class Detection:
-    """Detection results for a single image."""
+    """Detection results for a single image/frame."""
 
     boxes: np.ndarray  # [D, 4] x1y1x2y2
     scores: np.ndarray  # [D]
@@ -42,8 +45,14 @@ class Detector:
     Usage::
 
         det = Detector("yolo_nas_s", device="cuda")
-        results = det("image.jpg")
-        results.save("output.jpg")
+
+        # Single image
+        result = det("image.jpg")
+        result.save("output.jpg")
+
+        # Video (yields per-frame results)
+        for frame_idx, result in det.detect_video("video.mp4"):
+            print(f"Frame {frame_idx}: {len(result.boxes)} detections")
     """
 
     def __init__(
@@ -116,3 +125,117 @@ class Detector:
             class_ids=class_ids.cpu().numpy(),
             image=image if retain_image else None,
         )
+
+    def detect_video(
+        self,
+        source: str | Path | int,
+        conf_threshold: float | None = None,
+        iou_threshold: float | None = None,
+        retain_image: bool = True,
+        skip_frames: int = 0,
+    ) -> Generator[tuple[int, Detection], None, None]:
+        """Run detection on each frame of a video.
+
+        Args:
+            source: Video file path or camera index (0 for webcam).
+            conf_threshold: Override instance default.
+            iou_threshold: Override instance default.
+            retain_image: Store frame in each Detection result.
+            skip_frames: Process every N-th frame (0 = every frame).
+
+        Yields:
+            ``(frame_index, Detection)`` for each processed frame.
+        """
+        import cv2
+
+        cap = cv2.VideoCapture(str(source) if isinstance(source, Path) else source)
+        if not cap.isOpened():
+            raise FileNotFoundError(f"Cannot open video: {source}")
+
+        frame_idx = 0
+        try:
+            while True:
+                ret, frame = cap.read()
+                if not ret:
+                    break
+
+                if skip_frames > 0 and frame_idx % (skip_frames + 1) != 0:
+                    frame_idx += 1
+                    continue
+
+                result = self(frame, conf_threshold=conf_threshold, iou_threshold=iou_threshold, retain_image=retain_image)
+                yield frame_idx, result
+                frame_idx += 1
+        finally:
+            cap.release()
+
+    def detect_video_to_file(
+        self,
+        source: str | Path,
+        output: str | Path,
+        conf_threshold: float | None = None,
+        iou_threshold: float | None = None,
+        class_names: list[str] | None = None,
+        codec: str = "mp4v",
+        skip_frames: int = 0,
+    ) -> dict[str, int | float]:
+        """Run detection on a video and write annotated output.
+
+        Args:
+            source: Input video path.
+            output: Output video path.
+            conf_threshold: Override instance default.
+            iou_threshold: Override instance default.
+            class_names: Class names for labels (defaults to COCO).
+            codec: FourCC codec string.
+            skip_frames: Process every N-th frame (0 = every frame).
+                Skipped frames are written without annotations.
+
+        Returns:
+            Dict with ``total_frames``, ``processed_frames``, ``total_detections``.
+        """
+        import cv2
+
+        cap = cv2.VideoCapture(str(source))
+        if not cap.isOpened():
+            raise FileNotFoundError(f"Cannot open video: {source}")
+
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+        fourcc = cv2.VideoWriter_fourcc(*codec)
+        writer = cv2.VideoWriter(str(output), fourcc, fps, (w, h))
+
+        frame_idx = 0
+        processed = 0
+        total_detections = 0
+
+        try:
+            while True:
+                ret, frame = cap.read()
+                if not ret:
+                    break
+
+                should_process = skip_frames == 0 or frame_idx % (skip_frames + 1) == 0
+
+                if should_process:
+                    result = self(frame, conf_threshold=conf_threshold, iou_threshold=iou_threshold)
+                    annotated = draw_detections(frame, result.boxes, result.scores, result.class_ids, class_names)
+                    writer.write(annotated)
+                    processed += 1
+                    total_detections += len(result.boxes)
+                else:
+                    writer.write(frame)
+
+                frame_idx += 1
+        finally:
+            cap.release()
+            writer.release()
+
+        return {
+            "total_frames": frame_idx,
+            "processed_frames": processed,
+            "total_detections": total_detections,
+            "fps": fps,
+        }

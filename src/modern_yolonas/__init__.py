@@ -3,6 +3,7 @@
 from modern_yolonas._version import __version__
 from modern_yolonas.model import YoloNAS
 from modern_yolonas.weights import load_pretrained
+from modern_yolonas.inference.detect import Detector, Detection
 
 
 def yolo_nas_s(pretrained: bool = False, num_classes: int = 80) -> YoloNAS:
@@ -36,4 +37,6 @@ __all__ = [
     "yolo_nas_m",
     "yolo_nas_l",
     "load_pretrained",
+    "Detector",
+    "Detection",
 ]
