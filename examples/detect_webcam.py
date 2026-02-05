@@ -1,0 +1,36 @@
+"""Example: Run YOLO-NAS live on webcam feed.
+
+Usage:
+    python examples/detect_webcam.py
+    python examples/detect_webcam.py --model yolo_nas_m --device cuda
+"""
+
+import argparse
+
+import cv2
+
+from modern_yolonas.inference.detect import Detector
+
+
+def main():
+    parser = argparse.ArgumentParser(description="YOLO-NAS webcam detection")
+    parser.add_argument("--model", default="yolo_nas_s", choices=["yolo_nas_s", "yolo_nas_m", "yolo_nas_l"])
+    parser.add_argument("--device", default="cuda")
+    parser.add_argument("--conf", type=float, default=0.25)
+    parser.add_argument("--camera", type=int, default=0, help="Camera index")
+    args = parser.parse_args()
+
+    det = Detector(args.model, device=args.device, conf_threshold=args.conf)
+
+    print("Press 'q' to quit")
+    for frame_idx, result in det.detect_video(source=args.camera):
+        annotated = result.visualize()
+        cv2.imshow("YOLO-NAS", annotated)
+        if cv2.waitKey(1) & 0xFF == ord("q"):
+            break
+
+    cv2.destroyAllWindows()
+
+
+if __name__ == "__main__":
+    main()

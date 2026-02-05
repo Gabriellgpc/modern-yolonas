@@ -1,0 +1,59 @@
+"""Example: Run YOLO-NAS inference on a video file.
+
+Usage:
+    python examples/detect_video.py path/to/video.mp4
+    python examples/detect_video.py path/to/video.mp4 --output output.mp4 --model yolo_nas_l
+"""
+
+import argparse
+from pathlib import Path
+
+from modern_yolonas.inference.detect import Detector
+
+
+def main():
+    parser = argparse.ArgumentParser(description="YOLO-NAS video detection")
+    parser.add_argument("video", help="Path to input video")
+    parser.add_argument("--model", default="yolo_nas_s", choices=["yolo_nas_s", "yolo_nas_m", "yolo_nas_l"])
+    parser.add_argument("--device", default="cuda")
+    parser.add_argument("--conf", type=float, default=0.25, help="Confidence threshold")
+    parser.add_argument("--iou", type=float, default=0.45, help="NMS IoU threshold")
+    parser.add_argument("--output", default=None, help="Output video path (default: <input>_detect.<ext>)")
+    parser.add_argument("--skip-frames", type=int, default=0, help="Process every N-th frame (0 = all)")
+    parser.add_argument("--codec", default="mp4v", help="Output video codec")
+    args = parser.parse_args()
+
+    # Default output path
+    if args.output is None:
+        src = Path(args.video)
+        args.output = str(src.parent / f"{src.stem}_detect{src.suffix}")
+
+    # Create detector
+    det = Detector(args.model, device=args.device, conf_threshold=args.conf, iou_threshold=args.iou)
+
+    # --- Option 1: Write annotated video directly ---
+    print(f"Processing {args.video} ...")
+    stats = det.detect_video_to_file(
+        source=args.video,
+        output=args.output,
+        codec=args.codec,
+        skip_frames=args.skip_frames,
+    )
+    print(
+        f"Done! {stats['total_frames']} frames, "
+        f"{stats['processed_frames']} processed, "
+        f"{stats['total_detections']} total detections"
+    )
+    print(f"Saved to {args.output}")
+
+    # --- Option 2: Iterate frames with a generator (commented out) ---
+    # This is useful when you need custom per-frame logic:
+    #
+    # for frame_idx, result in det.detect_video(args.video):
+    #     print(f"Frame {frame_idx}: {len(result.boxes)} detections")
+    #     # Access result.boxes, result.scores, result.class_ids
+    #     # Or get annotated frame: annotated = result.visualize()
+
+
+if __name__ == "__main__":
+    main()
