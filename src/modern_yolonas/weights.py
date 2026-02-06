@@ -6,12 +6,15 @@ from the super-gradients module hierarchy to ours.
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 from urllib.request import urlretrieve
 
 import torch
 from torch import nn
+
+logger = logging.getLogger(__name__)
 
 WEIGHT_URLS = {
     "yolo_nas_s": "https://sg-hub-nv.s3.amazonaws.com/models/yolo_nas_s_coco.pth",
@@ -22,10 +25,18 @@ WEIGHT_URLS = {
 CACHE_DIR = Path(os.environ.get("YOLONAS_CACHE_DIR", Path.home() / ".cache" / "modern_yolonas"))
 
 
+_LICENSE_WARNING = (
+    "The pretrained weights are from Deci AI's super-gradients and are licensed "
+    "under the Super Gradients Model EULA (non-commercial use only). "
+    "See https://docs.deci.ai/super-gradients/latest/LICENSE.YOLONAS.html for details."
+)
+
+
 def _download(variant: str) -> Path:
     url = WEIGHT_URLS[variant]
     filename = url.rsplit("/", 1)[-1]
     dest = CACHE_DIR / filename
+    logger.warning(_LICENSE_WARNING)
     if dest.exists():
         return dest
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
