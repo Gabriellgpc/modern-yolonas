@@ -12,7 +12,22 @@ import click
 @click.option("--input-size", default=640, help="Model input size.")
 @click.option("--opset", default=17, help="ONNX opset version.")
 @click.option("--checkpoint", default=None, help="Custom checkpoint path.")
-def export(model: str, export_format: str, output: str | None, input_size: int, opset: int, checkpoint: str | None):
+@click.option("--target", default="generic", type=click.Choice(["generic", "frigate"]), help="Export target.")
+@click.option("--conf-threshold", default=0.25, help="Confidence threshold (frigate target).")
+@click.option("--iou-threshold", default=0.45, help="IoU threshold for NMS (frigate target).")
+@click.option("--max-detections", default=20, help="Max detections per image (frigate target).")
+def export(
+    model: str,
+    export_format: str,
+    output: str | None,
+    input_size: int,
+    opset: int,
+    checkpoint: str | None,
+    target: str,
+    conf_threshold: float,
+    iou_threshold: float,
+    max_detections: int,
+):
     """Export model to ONNX or OpenVINO format."""
     import torch
     from rich.console import Console
@@ -22,7 +37,10 @@ def export(model: str, export_format: str, output: str | None, input_size: int, 
     console = Console()
 
     if output is None:
-        output = "model.xml" if export_format == "openvino" else "model.onnx"
+        if target == "frigate":
+            output = "model_frigate.xml" if export_format == "openvino" else "model_frigate.onnx"
+        else:
+            output = "model.xml" if export_format == "openvino" else "model.onnx"
 
     builders = {"yolo_nas_s": yolo_nas_s, "yolo_nas_m": yolo_nas_m, "yolo_nas_l": yolo_nas_l}
     console.print(f"Loading {model}...")
@@ -44,7 +62,9 @@ def export(model: str, export_format: str, output: str | None, input_size: int, 
 
     dummy = torch.randn(1, 3, input_size, input_size)
 
-    if export_format == "openvino":
+    if target == "frigate":
+        _export_frigate(yolo_model, dummy, output, export_format, opset, conf_threshold, iou_threshold, max_detections, console)
+    elif export_format == "openvino":
         import openvino as ov
 
         console.print("Exporting to OpenVINO IR...")
@@ -67,3 +87,47 @@ def export(model: str, export_format: str, output: str | None, input_size: int, 
         )
 
     console.print(f"[green]Exported to {output}[/green]")
+
+
+def _export_frigate(yolo_model, dummy, output, export_format, opset, conf_threshold, iou_threshold, max_detections, console):
+    """Export with Frigate-compatible preprocessing + NMS baked in."""
+    import tempfile
+    from pathlib import Path
+
+    import torch
+
+    from modern_yolonas.export.frigate import make_frigate_onnx
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        base_onnx = str(Path(tmpdir) / "base.onnx")
+
+        console.print(f"Exporting base ONNX (opset {opset})...")
+        torch.onnx.export(
+            yolo_model,
+            dummy,
+            base_onnx,
+            input_names=["images"],
+            output_names=["pred_bboxes", "pred_scores"],
+            opset_version=opset,
+        )
+
+        if export_format == "openvino":
+            frigate_onnx = str(Path(tmpdir) / "frigate.onnx")
+        else:
+            frigate_onnx = output
+
+        console.print("Applying Frigate graph surgery (preproc + NMS)...")
+        make_frigate_onnx(
+            base_onnx,
+            frigate_onnx,
+            conf_threshold=conf_threshold,
+            iou_threshold=iou_threshold,
+            max_detections=max_detections,
+        )
+
+        if export_format == "openvino":
+            import openvino as ov
+
+            console.print("Converting Frigate ONNX to OpenVINO IR...")
+            ov_model = ov.convert_model(frigate_onnx)
+            ov.save_model(ov_model, output)

@@ -98,6 +98,32 @@ yolonas eval --model yolo_nas_s --data /path/to/coco --split val2017
 # Export
 yolonas export --model yolo_nas_s --format onnx --output model.onnx
 yolonas export --model yolo_nas_s --format openvino --output model.xml
+
+# Export for Frigate (embeds preprocessing + NMS in the graph)
+yolonas export --model yolo_nas_s --format onnx --target frigate
+yolonas export --model yolo_nas_s --format openvino --target frigate --input-size 320
+```
+
+### Frigate Integration
+
+The `--target frigate` export produces a self-contained model that accepts raw `uint8` BGR
+input and outputs a flat `[D, 7]` tensor with `[batch, x1, y1, x2, y2, confidence, class_id]`.
+
+Example Frigate configuration:
+
+```yaml
+detectors:
+  ov:
+    type: openvino
+    device: GPU
+
+model:
+  model_type: yolonas
+  width: 320
+  height: 320
+  input_tensor: nchw
+  input_pixel_format: bgr
+  path: /config/model_frigate.xml
 ```
 
 ## Examples
