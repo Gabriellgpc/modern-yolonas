@@ -20,13 +20,14 @@ def main():
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--conf", type=float, default=0.50)
     parser.add_argument("--camera", type=int, default=0, help="Camera index")
+    parser.add_argument("--debug", action="store_true", help="Show FPS and inference speed overlay")
     args = parser.parse_args()
 
     det = Detector(args.model, device=args.device, conf_threshold=args.conf)
 
     print("Press 'q' to quit")
     for frame_idx, result in det.detect_video(source=args.camera):
-        annotated = result.visualize()
+        annotated = result.visualize(debug=args.debug)
         cv2.imshow("YOLO-NAS", annotated)
         if cv2.waitKey(1) & 0xFF == ord("q"):
             break

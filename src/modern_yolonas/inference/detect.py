@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Generator
@@ -24,12 +25,25 @@ class Detection:
     scores: np.ndarray  # [D]
     class_ids: np.ndarray  # [D]
     image: np.ndarray | None = field(default=None, repr=False)
+    inference_ms: float | None = None  # end-to-end inference time in milliseconds
 
-    def visualize(self, class_names: list[str] | None = None) -> np.ndarray:
-        """Draw detections on the original image."""
+    def visualize(self, class_names: list[str] | None = None, debug: bool = False) -> np.ndarray:
+        """Draw detections on the original image.
+
+        Args:
+            class_names: Class names for labels.
+            debug: If True, overlay inference speed (ms) and FPS in the top-left corner.
+        """
         if self.image is None:
             raise ValueError("Original image not stored; pass retain_image=True to Detector")
-        return draw_detections(self.image, self.boxes, self.scores, self.class_ids, class_names)
+        img = draw_detections(self.image, self.boxes, self.scores, self.class_ids, class_names)
+        if debug and self.inference_ms is not None:
+            import cv2
+
+            fps = 1000.0 / self.inference_ms if self.inference_ms > 0 else 0.0
+            text = f"{self.inference_ms:.1f}ms ({fps:.1f} FPS)"
+            cv2.putText(img, text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+        return img
 
     def save(self, path: str | Path, class_names: list[str] | None = None):
         """Visualize and save to file."""
@@ -107,6 +121,8 @@ class Detector:
         else:
             image = source
 
+        t0 = time.perf_counter()
+
         tensor, scale, pad = preprocess(image, self.input_size)
         tensor = tensor.to(self.device)
 
@@ -119,11 +135,14 @@ class Detector:
         boxes, scores, class_ids = results[0]
         boxes = rescale_boxes(boxes, scale, pad, image.shape[:2])
 
+        inference_ms = (time.perf_counter() - t0) * 1000.0
+
         return Detection(
             boxes=boxes.cpu().numpy(),
             scores=scores.cpu().numpy(),
             class_ids=class_ids.cpu().numpy(),
             image=image if retain_image else None,
+            inference_ms=inference_ms,
         )
 
     def detect_video(
@@ -178,6 +197,7 @@ class Detector:
         class_names: list[str] | None = None,
         codec: str = "mp4v",
         skip_frames: int = 0,
+        debug: bool = False,
     ) -> dict[str, int | float]:
         """Run detection on a video and write annotated output.
 
@@ -190,6 +210,7 @@ class Detector:
             codec: FourCC codec string.
             skip_frames: Process every N-th frame (0 = every frame).
                 Skipped frames are written without annotations.
+            debug: If True, overlay inference speed (ms) and FPS on each frame.
 
         Returns:
             Dict with ``total_frames``, ``processed_frames``, ``total_detections``.
@@ -220,8 +241,8 @@ class Detector:
                 should_process = skip_frames == 0 or frame_idx % (skip_frames + 1) == 0
 
                 if should_process:
-                    result = self(frame, conf_threshold=conf_threshold, iou_threshold=iou_threshold)
-                    annotated = draw_detections(frame, result.boxes, result.scores, result.class_ids, class_names)
+                    result = self(frame, conf_threshold=conf_threshold, iou_threshold=iou_threshold, retain_image=True)
+                    annotated = result.visualize(class_names=class_names, debug=debug)
                     writer.write(annotated)
                     processed += 1
                     total_detections += len(result.boxes)
