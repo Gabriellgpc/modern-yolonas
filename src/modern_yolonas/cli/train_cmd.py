@@ -49,32 +49,26 @@ def train(
     from rich.console import Console
 
     from modern_yolonas import yolo_nas_s, yolo_nas_m, yolo_nas_l
-    from modern_yolonas.data.transforms import Compose, HSVAugment, HorizontalFlip, RandomAffine, LetterboxResize, Normalize
-    from modern_yolonas.training import YoloNASLightningModule, EMACallback, DetectionDataModule
+    from modern_yolonas.training import YoloNASLightningModule, EMACallback, CloseMosaicCallback, DetectionDataModule
+    from modern_yolonas.training.recipes import COCO_RECIPE
+    from modern_yolonas.training.run import build_transforms
 
     console = Console()
+
+    # Build recipe from CLI args (derive from COCO_RECIPE as base)
+    recipe = {**COCO_RECIPE, "input_size": input_size, "workers": workers}
 
     # Build model
     builders = {"yolo_nas_s": yolo_nas_s, "yolo_nas_m": yolo_nas_m, "yolo_nas_l": yolo_nas_l}
     console.print(f"Building {model} (pretrained={pretrained}, num_classes={num_classes})...")
     yolo_model = builders[model](pretrained=pretrained, num_classes=num_classes)
 
-    # Build datasets
-    transforms = Compose([
-        HSVAugment(),
-        HorizontalFlip(),
-        RandomAffine(degrees=0.0, translate=0.1, scale=(0.5, 1.5)),
-        LetterboxResize(target_size=input_size),
-        Normalize(),
-    ])
-
+    # Build datasets without transforms first
     if data_format == "yolo":
         from modern_yolonas.data.yolo import YOLODetectionDataset
 
-        train_dataset = YOLODetectionDataset(data, split="train", transforms=transforms, input_size=input_size)
-        val_dataset = YOLODetectionDataset(data, split="val", transforms=Compose([
-            LetterboxResize(target_size=input_size), Normalize()
-        ]), input_size=input_size)
+        train_dataset = YOLODetectionDataset(data, split="train", transforms=None, input_size=input_size)
+        val_dataset = YOLODetectionDataset(data, split="val", transforms=None, input_size=input_size)
     else:
         from modern_yolonas.data.coco import COCODetectionDataset
 
@@ -82,15 +76,19 @@ def train(
         train_dataset = COCODetectionDataset(
             data_path / "images" / "train2017",
             data_path / "annotations" / "instances_train2017.json",
-            transforms=transforms,
+            transforms=None,
             input_size=input_size,
         )
         val_dataset = COCODetectionDataset(
             data_path / "images" / "val2017",
             data_path / "annotations" / "instances_val2017.json",
-            transforms=Compose([LetterboxResize(target_size=input_size), Normalize()]),
+            transforms=None,
             input_size=input_size,
         )
+
+    # Assign transforms (train pipeline needs dataset reference for Mosaic/Mixup)
+    train_dataset.transforms = build_transforms(recipe, train=True, dataset=train_dataset)
+    val_dataset.transforms = build_transforms(recipe, train=False)
 
     console.print(f"Train: {len(train_dataset)} images, Val: {len(val_dataset)} images")
 
@@ -130,6 +128,12 @@ def train(
         EMACallback(),
         ModelCheckpoint(dirpath=output, save_last=True),
     ]
+
+    # CloseMosaicCallback
+    aug = recipe.get("augmentations", {})
+    close_mosaic_epochs = aug.get("close_mosaic_epochs", 0)
+    if close_mosaic_epochs > 0 and (aug.get("mosaic") or aug.get("mixup")):
+        callbacks.append(CloseMosaicCallback(close_mosaic_epochs=close_mosaic_epochs))
 
     trainer = L.Trainer(
         max_epochs=epochs,
