@@ -126,9 +126,24 @@ model:
   path: /config/model_frigate.xml
 ```
 
+## Tutorials
+
+Step-by-step notebooks in [`tutorials/`](tutorials/):
+
+| Topic | Notebook | Description |
+|---|---|---|
+| **Roboflow** | [`roboflow/01_explore_dataset.ipynb`](tutorials/roboflow/01_explore_dataset.ipynb) | Download from Roboflow + explore |
+| | [`roboflow/02_finetune.ipynb`](tutorials/roboflow/02_finetune.ipynb) | Fine-tune + evaluate + visualize |
+| **FiftyOne** | [`fiftyone/01_explore_dataset.ipynb`](tutorials/fiftyone/01_explore_dataset.ipynb) | Load from FiftyOne Zoo + explore |
+| | [`fiftyone/02_finetune.ipynb`](tutorials/fiftyone/02_finetune.ipynb) | Fine-tune + evaluate + visualize |
+| **Export** | [`export_onnx.ipynb`](tutorials/export_onnx.ipynb) | ONNX export from any checkpoint |
+| **Quantization** | [`quantization_ptq.ipynb`](tutorials/quantization_ptq.ipynb) | Post-Training Quantization |
+| | [`quantization_qat.ipynb`](tutorials/quantization_qat.ipynb) | Quantization-Aware Training |
+| **Inference** | [`inference_onnx.ipynb`](tutorials/inference_onnx.ipynb) | ONNX Runtime inference |
+
 ## Examples
 
-See the [`examples/`](examples/) directory:
+Detection scripts in [`examples/`](examples/):
 
 - [`detect_image.py`](examples/detect_image.py) — run detection on a single image
 - [`detect_video.py`](examples/detect_video.py) — run detection on a video file
