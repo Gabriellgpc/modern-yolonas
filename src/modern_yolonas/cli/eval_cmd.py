@@ -47,9 +47,10 @@ def eval_cmd(
     builders = {"yolo_nas_s": yolo_nas_s, "yolo_nas_m": yolo_nas_m, "yolo_nas_l": yolo_nas_l}
 
     if checkpoint:
+        from modern_yolonas.training.lightning_module import extract_model_state_dict
+
         yolo_model = builders[model](pretrained=False)
-        ckpt = torch.load(checkpoint, map_location="cpu", weights_only=True)
-        sd = ckpt.get("model_state_dict", ckpt)
+        sd = extract_model_state_dict(checkpoint)
         yolo_model.load_state_dict(sd)
     else:
         yolo_model = builders[model](pretrained=True)
