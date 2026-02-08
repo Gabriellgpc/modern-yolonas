@@ -19,6 +19,7 @@ import click
 @click.option("--input-size", default=640, help="Model input size.")
 @click.option("--workers", default=8, help="DataLoader workers.")
 @click.option("--pretrained/--no-pretrained", default=True, help="Use pretrained COCO weights.")
+@click.option("--num-classes", default=80, help="Number of object classes.")
 @click.option("--devices", default="auto", help="Devices to use (e.g. 'auto', '1', '0,1').")
 @click.option(
     "--logger",
@@ -38,6 +39,7 @@ def train(
     input_size: int,
     workers: int,
     pretrained: bool,
+    num_classes: int,
     devices: str,
     logger: str,
 ):
@@ -54,8 +56,8 @@ def train(
 
     # Build model
     builders = {"yolo_nas_s": yolo_nas_s, "yolo_nas_m": yolo_nas_m, "yolo_nas_l": yolo_nas_l}
-    console.print(f"Building {model} (pretrained={pretrained})...")
-    yolo_model = builders[model](pretrained=pretrained)
+    console.print(f"Building {model} (pretrained={pretrained}, num_classes={num_classes})...")
+    yolo_model = builders[model](pretrained=pretrained, num_classes=num_classes)
 
     # Build datasets
     transforms = Compose([
@@ -96,7 +98,7 @@ def train(
     warmup_steps = min(1000, len(train_dataset) // batch_size * 3)
     lit_model = YoloNASLightningModule(
         model=yolo_model,
-        num_classes=80,
+        num_classes=num_classes,
         lr=lr,
         warmup_steps=warmup_steps,
     )

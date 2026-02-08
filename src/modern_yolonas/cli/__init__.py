@@ -6,6 +6,7 @@ from modern_yolonas.cli.export_cmd import export
 from modern_yolonas.cli.eval_cmd import eval_cmd
 from modern_yolonas.cli.quantize_cmd import quantize
 from modern_yolonas.cli.qat_cmd import qat
+from modern_yolonas.cli.benchmark_cmd import benchmark
 
 
 @click.group()
@@ -20,3 +21,4 @@ main.add_command(export)
 main.add_command(eval_cmd, name="eval")
 main.add_command(quantize)
 main.add_command(qat)
+main.add_command(benchmark)

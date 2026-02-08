@@ -2075,6 +2075,9 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+benchmark = [
+    { name = "rf100vl" },
+]
 dev = [
     { name = "jupyter" },
     { name = "mypy" },
@@ -2120,6 +2123,7 @@ requires-dist = [
     { name = "pycocotools", specifier = ">=2.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0" },
     { name = "pyyaml", specifier = ">=6.0" },
+    { name = "rf100vl", marker = "extra == 'benchmark'", specifier = ">=0.1" },
     { name = "rich", specifier = ">=13.0" },
     { name = "roboflow", marker = "extra == 'dev'", specifier = ">=1.2.13" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.4" },
@@ -2127,7 +2131,7 @@ requires-dist = [
     { name = "torchvision", specifier = ">=0.22", index = "https://download.pytorch.org/whl/cu130" },
     { name = "wandb", marker = "extra == 'dev'", specifier = ">=0.18" },
 ]
-provides-extras = ["dev", "fiftyone", "onnx", "openvino"]
+provides-extras = ["benchmark", "dev", "fiftyone", "onnx", "openvino"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -3812,6 +3816,17 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/c8/5a/b17e1e257d3e6f2e7758930e1256832c9ddd576f8631781e6a072914befa/retrying-1.4.2.tar.gz", hash = "sha256:d102e75d53d8d30b88562d45361d6c6c934da06fab31bd81c0420acb97a8ba39", size = 11411, upload-time = "2025-08-03T03:35:25.189Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/67/f3/6cd296376653270ac1b423bb30bd70942d9916b6978c6f40472d6ac038e7/retrying-1.4.2-py3-none-any.whl", hash = "sha256:bbc004aeb542a74f3569aeddf42a2516efefcdaff90df0eb38fbfbf19f179f59", size = 10859, upload-time = "2025-08-03T03:35:23.829Z" },
+]
+
+[[package]]
+name = "rf100vl"
+version = "1.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "roboflow" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e2/5e/ed2cd735695d5494e9838d7f70e62524bb5265c9371b126a58cc24b3eee1/rf100vl-1.1.0-py3-none-any.whl", hash = "sha256:1ac042f698610d041c07720f7b309f7806f85d8db83ca82d7b187867c993f455", size = 16858, upload-time = "2025-09-18T01:06:03.686Z" },
 ]
 
 [[package]]
